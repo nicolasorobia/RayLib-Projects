@@ -16,7 +16,7 @@ Makefile
 *.cmake
 !CMakeLists.txt
 
-.vscode/
+**/.vscode/
 
 .DS_Store
 Thumbs.db
