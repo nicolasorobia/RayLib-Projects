@@ -8,8 +8,10 @@ using namespace std;
 Color green =     {173, 204, 96, 255};
 Color darkGreen = {43, 51, 24, 255};
 
-int cellSize = 30;
-int cellCount = 25;
+float cellSize = 30;
+float cellCount = 25;
+float offset = 75;
+float windowSize = 2 * offset + cellSize * cellCount;
 
 double lastUpdateTime = 0;
 
@@ -31,7 +33,6 @@ bool ElementInDeque(Vector2 element, deque<Vector2> deque) {
 
     return false;
 }
-
 
 class Food {
 public:
@@ -59,6 +60,7 @@ public:
     Vector2 GenerateRandomPos(deque<Vector2> snakeBody) {
         Vector2 position = GenerateRandomCell();
         // check if food randomly spawns in a position where snake body is at
+        // then make it spawn somewhere else
         while(ElementInDeque(position, snakeBody)) {
             position = GenerateRandomCell();
         }
@@ -67,7 +69,7 @@ public:
     }
 
     void Draw() {
-        DrawTexture(texture, position.x * cellSize, position.y * cellSize, WHITE);
+        DrawTexture(texture, offset + position.x * cellSize, offset + position.y * cellSize, WHITE);
     }
 
 };
@@ -85,7 +87,7 @@ public:
         for (int i = 0; i < body.size(); i++) {
             float x = body[i].x;
             float y = body[i].y;
-            Rectangle segment = Rectangle{x * cellSize, y * cellSize, (float)cellSize, (float)cellSize};
+            Rectangle segment = Rectangle{offset + x * cellSize, offset + y * cellSize, cellSize, cellSize};
             DrawRectangleRounded(segment, 0.5, 6, darkGreen);
         }
     }
@@ -109,7 +111,22 @@ class Game {
 public:
     Snake snake = Snake();
     Food food = Food(snake.body);
-    bool running = true;
+    int score = 0;
+    int hiscore = 0;
+    bool running = false;
+    Sound eat, wall;
+
+    Game() {
+        InitAudioDevice();
+        eat = LoadSound("audio/eat.mp3");
+        wall = LoadSound("audio/wall.mp3");
+    }
+
+    ~Game() {
+        UnloadSound(eat);
+        UnloadSound(wall);
+        CloseAudioDevice();
+    }
 
     void Draw() {
         food.Draw();
@@ -121,6 +138,7 @@ public:
             snake.Update();
             CheckCollisionWithFood();
             CheckCollisionWithWalls();
+            CheckCollisionWithBody();
         }
     }
 
@@ -128,18 +146,32 @@ public:
         if(Vector2Equals(snake.body[0], food.position)) {
             food.position = food.GenerateRandomPos(snake.body);
             snake.addSegment = true;
+            PlaySound(eat);
+            score++;
+            if (hiscore < score) hiscore = score;
         }
     }
 
     void CheckCollisionWithWalls() {
-        if (snake.body[0].x >= cellCount || snake.body[0].x <= 0) {
+        if (snake.body[0].x >= cellCount || snake.body[0].x == -1) {
             // snake.body.pop_back();
             GameOver();
+            PlaySound(wall);
         }
 
-        if (snake.body[0].y >= cellCount || snake.body[0].y <= 0) {
+        if (snake.body[0].y >= cellCount || snake.body[0].y == -1) {
             // snake.body.pop_back();
             GameOver();
+            PlaySound(wall);
+        }
+    }
+
+    void CheckCollisionWithBody() {
+        for (int i = 1; i < snake.body.size(); i++) {
+            if (snake.body[0].x == snake.body[i].x && snake.body[0].y == snake.body[i].y) {
+                GameOver();
+                PlaySound(wall);
+            }
         }
     }
 
@@ -147,14 +179,15 @@ public:
         snake.Reset();
         food.position = food.GenerateRandomPos(snake.body);
         running = false;
+        score = 0;
     }
 };
 
 int main() {
-    InitWindow(cellSize * cellCount, cellSize * cellCount, "Snake");
+    // window is a square so window width and height are the same
+    InitWindow(windowSize, windowSize, "Snake");
     SetTargetFPS(60);
-    InitAudioDevice();
-
+    
     Game game = Game();
 
     while(WindowShouldClose() == false) {
@@ -170,9 +203,14 @@ int main() {
         if (IsKeyPressed(KEY_S) && game.snake.direction.y != -1) game.snake.direction = {0, 1};
         if (IsKeyPressed(KEY_D) && game.snake.direction.x != -1) game.snake.direction = {1, 0};
         if (IsKeyPressed(KEY_A) && game.snake.direction.x !=  1) game.snake.direction = {-1, 0};
+        // press 'space' to start game
+        if (IsKeyPressed(KEY_SPACE))                             game.running = true; 
 
         // Drawing
         ClearBackground(green);
+        DrawRectangleLinesEx(Rectangle{offset - 5, offset - 5, cellSize*cellCount + 10, cellSize*cellCount + 10}, 5, darkGreen);
+        DrawText(TextFormat("Score: %04i", game.score), offset - 5, 20, 40, darkGreen);
+        DrawText(TextFormat("HiScore: %04i", game.hiscore), offset + 480, 20, 40, darkGreen);
         game.Draw();
 
         EndDrawing();
